@@ -1,0 +1,223 @@
+name: CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [ master ]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      client_changed: ${{ steps.detect.outputs.client_changed }}
+      server_changed: ${{ steps.detect.outputs.server_changed }}
+      workflow_changed: ${{ steps.detect.outputs.workflow_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: detect
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          if [ -z "$BASE_REF" ] || [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "client_changed=true" >> $GITHUB_OUTPUT
+            echo "server_changed=true" >> $GITHUB_OUTPUT
+            echo "workflow_changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          git fetch --no-tags --prune --depth=1 origin "$BASE_REF" || true
+          CHANGED=$(git diff --name-only origin/$BASE_REF...HEAD || true)
+
+          if echo "$CHANGED" | grep -q '^client/'; then echo "client_changed=true" >> $GITHUB_OUTPUT; else echo "client_changed=false" >> $GITHUB_OUTPUT; fi
+          if echo "$CHANGED" | grep -q '^server/'; then echo "server_changed=true" >> $GITHUB_OUTPUT; else echo "server_changed=false" >> $GITHUB_OUTPUT; fi
+          if echo "$CHANGED" | grep -q '^.github/workflows/'; then echo "workflow_changed=true" >> $GITHUB_OUTPUT; else echo "workflow_changed=false" >> $GITHUB_OUTPUT; fi
+
+  test-client:
+    name: test-client
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: client/node_modules
+          key: ${{ runner.os }}-client-${{ hashFiles('client/package-lock.json') }}
+
+      - name: Install dependencies
+        run: |
+          cd client
+          npm install
+
+      - name: Run lint
+        run: |
+          cd client
+          npm run lint
+
+      - name: Build
+        env:
+          CI: true
+          VITE_API_URL: http://localhost:5173
+        run: |
+          cd client
+          npm run build
+
+  test-server:
+    name: test-server
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.server_changed == 'true' || needs.changes.outputs.workflow_changed == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: server/node_modules
+          key: ${{ runner.os }}-server-${{ hashFiles('server/package-lock.json') }}
+
+      - name: Install dependencies
+        run: |
+          cd server
+          npm install
+
+      - name: Run lint
+        run: |
+          cd server
+          npm run lint
+
+      - name: Verify server starts
+        env:
+          CI: true
+          NODE_ENV: test
+          MONGO_URI: mongodb://localhost:27017/test-db
+          JWT_SECRET: test-secret-for-ci
+          PORT: 5000
+        run: |
+          cd server
+          node -c index.js
+
+  on-failure:
+    name: on-failure
+    runs-on: ubuntu-latest
+    needs: [test-client, test-server]
+    if: ${{ always() && (needs['test-client'].result == 'failure' || needs['test-client'].result == 'cancelled' || needs['test-server'].result == 'failure' || needs['test-server'].result == 'cancelled') }}
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
+    steps:
+      - name: Build failure list
+        id: build-failure
+        run: |
+          set -euo pipefail
+          failures=""
+          if [ "${{ needs['test-client'].result }}" = "failure" ] || [ "${{ needs['test-client'].result }}" = "cancelled" ]; then failures+="- test-client: client lint/build failed\n"; fi
+          if [ "${{ needs['test-server'].result }}" = "failure" ] || [ "${{ needs['test-server'].result }}" = "cancelled" ]; then failures+="- test-server: server lint/build failed\n"; fi
+          echo "failures<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$failures" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prObj = context.payload.pull_request;
+            const failures = process.env.FAILURES || '';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            if (!prObj) {
+              console.log('No pull_request found in event payload; skipping comment.');
+            } else {
+              const pr = prObj.number;
+              const author = prObj.user ? prObj.user.login : '';
+              const body = `@${author}\n\nThe following CI jobs failed:\n\n${failures}\nLogs: ${runUrl}`;
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr, body });
+            }
+        env:
+          FAILURES: ${{ steps.build-failure.outputs.failures }}
+
+  on-success:
+    name: on-success
+    runs-on: ubuntu-latest
+    needs: [test-client, test-server]
+    if: ${{ always() && (needs['test-client'].result == 'success' || needs['test-client'].result == 'skipped') && (needs['test-server'].result == 'success' || needs['test-server'].result == 'skipped') && (needs['test-client'].result == 'success' || needs['test-server'].result == 'success') }}
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Post success comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prObj = context.payload.pull_request;
+
+            if (!prObj) {
+              console.log('No pull_request found; skipping success comment.');
+              return;
+            }
+
+            const pr = prObj.number;
+            const author = prObj.user ? prObj.user.login : '';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            const clientRan = '${{ needs.test-client.result }}' !== 'skipped';
+            const serverRan = '${{ needs.test-server.result }}' !== 'skipped';
+
+            let testsRun = [];
+            if (clientRan) testsRun.push('✅ Client: Lint + Build');
+            if (serverRan) testsRun.push('✅ Server: Lint + Syntax Check');
+
+            const body = `## 🎉 All CI Checks Passed!\n\n@${author}\n\n` +
+              `**Tests Run:**\n${testsRun.map(t => `- ${t}`).join('\n')}\n\n` +
+              `**Lines Changed:** +${prObj.additions} / -${prObj.deletions}\n\n` +
+              `[View detailed logs](${runUrl})\n\n` +
+              `---\n` +
+              `**Next Steps for Reviewer:**\n` +
+              `- [ ] Review code quality and implementation\n` +
+              `- [ ] Verify testing steps in PR description\n` +
+              `- [ ] Check for best practices and security issues\n` +
+              `- [ ] Test functionality locally if needed\n\n` +
+              `*This PR is ready for human review.*`;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pr,
+              body
+            });

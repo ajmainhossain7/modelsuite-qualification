@@ -1,0 +1,2 @@
+# This folder holds uploaded submission files.
+# Intentional gap: uploads folder is committed to the repo — production files should never be in version control.

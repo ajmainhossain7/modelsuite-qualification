@@ -1,0 +1,53 @@
+rules:
+
+- id: no-console-log
+  message: "Remove console.log statements from production code. Use a proper logger or remove before committing."
+  languages: [javascript, typescript, tsx]
+  severity: ERROR
+  pattern: console.log(...)
+
+- id: no-eval
+  message: "Avoid eval(). It can lead to security issues and arbitrary code execution. Use safer alternatives."
+  languages: [javascript, typescript, tsx]
+  severity: ERROR
+  pattern: eval(...)
+
+- id: dangerously-set-inner-html
+  message: "Use of dangerouslySetInnerHTML can lead to XSS. Ensure content is sanitized before insertion."
+  languages: [javascript, typescript, tsx]
+  severity: WARNING
+  pattern-regex: |
+    dangerouslySetInnerHTML
+
+- id: todo-fixme-comments
+  message: "Remove TODO/FIXME comments before merging or create an issue and reference it."
+  languages: [javascript, typescript, tsx]
+  severity: WARNING
+  pattern-regex: |
+    (?i)\b(TODO|FIXME)\b
+
+- id: hardcoded-secrets
+  message: "Hardcoded secret detected. Do not commit passwords or keys; use secrets management."
+  languages: [javascript, typescript, tsx]
+  severity: ERROR
+  pattern-regex: |
+    ^(\s*)(?:const|let|var)\s+(?:password|secret|apiKey|token|privateKey)\s*=\s*['"`].*['"`]
+
+- id: debugger-statement
+  message: "Remove debugger statements from committed code. They pause execution in users' environments."
+  languages: [javascript, typescript, tsx]
+  severity: ERROR
+  pattern: debugger
+
+- id: document-write
+  message: "Avoid document.write(). It is unsafe and can cause markup issues. Use DOM APIs instead."
+  languages: [javascript, typescript, tsx]
+  severity: WARNING
+  pattern: document.write(...)
+
+- id: use-strict-equality
+  message: "Use strict equality (===) instead of == to avoid type-coercion bugs."
+  languages: [javascript, typescript, tsx]
+  severity: WARNING
+  pattern-regex: |
+    ==(?!=)
