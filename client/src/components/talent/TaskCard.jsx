@@ -1,4 +1,4 @@
-﻿import { claimTask } from '../../api/talent';
+import { claimTask } from '../../api/talent';
 
 const STATUS_CLASS = {
   Open:      'status-badge-Open',
@@ -39,10 +39,23 @@ const TaskCard = ({ task, showClaimButton = false, onClaimed }) => {
 
       {/* Meta row */}
       <div className="flex items-center justify-between flex-wrap gap-2 mt-auto">
-        
-        <span className="text-[12px] text-text-faint">
-          {task.dueDate ? `Due: ${task.dueDate}` : 'No due date'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] text-text-faint">
+            {task.dueDate ? `Due: ${task.dueDate}` : 'No due date'}
+          </span>
+          {(() => {
+            if (!task.dueDate || task.status === 'Approved') return null;
+            const diffMs = new Date(task.dueDate) - new Date();
+            const diffHours = diffMs / (1000 * 60 * 60);
+            if (diffMs < 0) {
+              return <span className="inline-block px-2 py-[2px] rounded-full text-[10px] font-bold tracking-[0.2px] badge-overdue shrink-0">Overdue</span>;
+            }
+            if (diffHours <= 24) {
+              return <span className="inline-block px-2 py-[2px] rounded-full text-[10px] font-bold tracking-[0.2px] badge-due-soon shrink-0">Due Soon</span>;
+            }
+            return null;
+          })()}
+        </div>
         {task.createdBy?.name && (
           <span className="text-[12px] text-text-faint">By {task.createdBy.name}</span>
         )}

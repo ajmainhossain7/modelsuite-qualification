@@ -73,10 +73,24 @@ const MyTasksList = ({ tasks, onRefresh }) => {
                 {task.title || 'Untitled Task'}
               </p>
               {fmtDate(task.dueDate) && (
-                <p className="flex items-center gap-1.5 text-[11.5px]" style={{ color: '#4B5563' }}>
-                  <IconCalendar />
-                  Due {fmtDate(task.dueDate)}
-                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="flex items-center gap-1.5 text-[11.5px]" style={{ color: '#4B5563', margin: 0 }}>
+                    <IconCalendar />
+                    Due {fmtDate(task.dueDate)}
+                  </p>
+                  {(() => {
+                    if (!task.dueDate || task.status === 'Approved') return null;
+                    const diffMs = new Date(task.dueDate) - new Date();
+                    const diffHours = diffMs / (1000 * 60 * 60);
+                    if (diffMs < 0) {
+                      return <span className="inline-block px-1.5 py-[1px] rounded text-[9.5px] font-bold badge-overdue shrink-0">Overdue</span>;
+                    }
+                    if (diffHours <= 24) {
+                      return <span className="inline-block px-1.5 py-[1px] rounded text-[9.5px] font-bold badge-due-soon shrink-0">Due Soon</span>;
+                    }
+                    return null;
+                  })()}
+                </div>
               )}
             </div>
 

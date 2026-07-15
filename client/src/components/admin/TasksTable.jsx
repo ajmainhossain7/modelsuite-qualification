@@ -127,7 +127,21 @@ const TasksTable = ({ tasks, onEdit, onRefresh }) => {
 
               {/* Due date */}
               <td className="table-td" style={{ color: '#6B7280', whiteSpace: 'nowrap' }}>
-                {fmtDate(task.dueDate)}
+                <div className="flex items-center gap-1.5">
+                  <span>{fmtDate(task.dueDate)}</span>
+                  {(() => {
+                    if (!task.dueDate || task.status === 'Approved') return null;
+                    const diffMs = new Date(task.dueDate) - new Date();
+                    const diffHours = diffMs / (1000 * 60 * 60);
+                    if (diffMs < 0) {
+                      return <span className="inline-block px-1.5 py-[1px] rounded text-[9.5px] font-bold badge-overdue shrink-0">Overdue</span>;
+                    }
+                    if (diffHours <= 24) {
+                      return <span className="inline-block px-1.5 py-[1px] rounded text-[9.5px] font-bold badge-due-soon shrink-0">Due Soon</span>;
+                    }
+                    return null;
+                  })()}
+                </div>
               </td>
 
               {/* Created */}
