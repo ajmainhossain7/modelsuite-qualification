@@ -22,15 +22,27 @@ const getAllTasks = async (req, res) => {
 // @access Admin
 const getTaskById = async (req, res) => {
   try {
-    // — will throw a CastError from Mongoose instead of a clean 400
     const task = await Task.findById(req.params.id)
       .populate('assignedTo', 'name email')
       .populate('createdBy', 'name');
 
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
+    // IDOR Prevention: If requester is a Talent, verify permission
+    if (req.user.role === 'Talent') {
+      const isAssignedToMe = task.assignedTo && task.assignedTo._id.toString() === req.user._id.toString();
+      const isOpenTask = task.status === 'Open';
+
+      if (!isAssignedToMe && !isOpenTask) {
+        return res.status(403).json({ message: 'Access denied: You are not authorized to view this task' });
+      }
+    }
+
     res.json(task);
   } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: 'Invalid task ID format' });
+    }
     res.status(500).json({ message: error.message });
   }
 };
