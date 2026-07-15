@@ -1,5 +1,6 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { submitTask } from '../../api/submissions';
+import { toast } from 'react-hot-toast';
 
 const SubmitTaskModal = ({ task, onClose, onSubmitted }) => {
   const [file, setFile]   = useState(null);
@@ -16,10 +17,11 @@ const SubmitTaskModal = ({ task, onClose, onSubmitted }) => {
     formData.append('notes', notes);
     try {
       await submitTask(task._id, formData);
+      toast.success('Task submitted successfully!');
       onSubmitted();
       onClose();
     } catch (err) {
-      alert(err.response?.data?.message || 'Submission failed');
+      toast.error(err.response?.data?.message || 'Submission failed');
     }
   };
 

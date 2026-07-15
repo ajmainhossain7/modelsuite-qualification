@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Sidebar from '../../components/admin/Sidebar';
 import SubmissionReviewModal from '../../components/admin/SubmissionReviewModal';
 import { fetchAllSubmissions } from '../../api/submissions';
+import { toast } from 'react-hot-toast';
 
 const REVIEW_STATUS_CLASS = {
   Pending:  'status-badge-Submitted',
@@ -18,7 +19,7 @@ const SubmissionsPage = () => {
       const { data } = await fetchAllSubmissions();
       setSubmissions(data);
     } catch {
-      alert('Failed to load submissions');
+      toast.error('Failed to load submissions');
     }
   };
 

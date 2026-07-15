@@ -4,6 +4,7 @@ import TasksTable from '../../components/admin/TasksTable';
 import CreateTaskModal from '../../components/admin/CreateTaskModal';
 import EditTaskModal from '../../components/admin/EditTaskModal';
 import { fetchAllTasks } from '../../api/tasks';
+import { toast } from 'react-hot-toast';
 
 /* ── Search icon ── */
 const IconSearch = () => (
@@ -32,7 +33,7 @@ const AdminDashboard = () => {
       const { data } = await fetchAllTasks();
       setTasks(data);
     } catch {
-      alert('Failed to load tasks');
+      toast.error('Failed to load tasks');
     }
   };
 

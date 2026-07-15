@@ -1,5 +1,6 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { Toaster } from 'react-hot-toast';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -17,6 +18,19 @@ const PrivateRoute = ({ children, role }) => {
 function App() {
   return (
     <AuthProvider>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#1E1F22',
+            color: '#E5E2E1',
+            border: '1px solid rgba(255,255,255,0.08)',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '13.5px',
+            borderRadius: '10px',
+          },
+        }}
+      />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
